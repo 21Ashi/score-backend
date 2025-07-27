@@ -6,8 +6,8 @@ const app = express();
 app.use(express.json());
 
 const admin = require("firebase-admin");
-const serviceAccount = require("./firebase-service-account.json");
-
+const path = require("path");
+const serviceAccount = require(path.join(__dirname, "firebase-service-account.json"));
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
   databaseURL: "https://cheflens-ce7f2.firebaseio.com"
