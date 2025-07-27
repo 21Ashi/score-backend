@@ -1,3 +1,5 @@
+# Node modules
+node_modules/
+
+# Firebase credentials (DO NOT upload to GitHub!)
 firebase-service-account.json
-node_modules
-.env
