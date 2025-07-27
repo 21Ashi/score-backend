@@ -5,16 +5,16 @@ const WebSocket = require('ws');
 const app = express();
 app.use(express.json());
 
-
 const admin = require("firebase-admin");
-const serviceAccount = require("./firebase-service-account.json"); // ✅ correct local path
+const serviceAccount = require("./firebase-service-account.json");
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
-  databaseURL: "https://cheflens-ce7f2.firebaseio.com" // ✅ required for admin access
+  databaseURL: "https://cheflens-ce7f2.firebaseio.com"
 });
 
 const db = admin.firestore();
+
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
@@ -35,8 +35,8 @@ wss.on("connection", (ws) => {
   });
 });
 
-// POST /send-message endpoint
-app.post('/send-message', (req, res) => {
+// Single POST /send-message endpoint
+app.post('/send-message', async (req, res) => {
   const { user, message } = req.body;
 
   if (!user || !message) {
@@ -45,29 +45,15 @@ app.post('/send-message', (req, res) => {
 
   console.log(`Message from ${user}: ${message}`);
 
-  // Respond back with confirmation + a friendly reply
-  res.json({ 
-    status: 'ok', 
-    reply: `Hello ${user}, your message was received loud and clear!` 
-  });
-});
-
-
-
-app.post('/send-message', async (req, res) => {
-  const { user, message } = req.body;
-
-  if (!user || !message) {
-    return res.status(400).json({ error: 'Missing user or message' });
-  }
-
   try {
+    // Save message to Firestore
     await db.collection('messages').add({
       user,
       message,
       timestamp: admin.firestore.FieldValue.serverTimestamp()
     });
 
+    // Respond back with confirmation
     res.json({ 
       status: 'ok', 
       reply: `Hello ${user}, your message is saved in Firebase!` 
@@ -78,7 +64,6 @@ app.post('/send-message', async (req, res) => {
     res.status(500).json({ error: 'Failed to save message' });
   }
 });
-
 
 server.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
