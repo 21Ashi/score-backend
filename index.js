@@ -6,7 +6,7 @@ const admin = require('firebase-admin');
 const app = express();
 app.use(express.json());
 
-// ✅ Use FIREBASE_CONFIG from environment variable (base64-encoded JSON)
+// ✅ Load Firebase credentials from env var
 const serviceAccount = JSON.parse(
   Buffer.from(process.env.FIREBASE_CONFIG, 'base64').toString('utf-8')
 );
@@ -20,22 +20,29 @@ const db = admin.firestore();
 
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
-
 const PORT = process.env.PORT || 3000;
 
-// ✅ WebSocket handler
+// ✅ WebSocket setup
 wss.on('connection', (ws) => {
-  console.log('Client connected');
+  console.log('🔌 WebSocket client connected');
 
+  // Send a welcome message
   ws.send('👋 Hello from the server!');
 
+  // Listen to messages from the client
   ws.on('message', (message) => {
-    console.log('Received:', message);
+    console.log('💬 WebSocket message:', message);
+
+    // Echo back
     ws.send(`You said: ${message}`);
+  });
+
+  ws.on('close', () => {
+    console.log('❌ WebSocket connection closed');
   });
 });
 
-// ✅ REST API to receive and store message
+// ✅ POST endpoint to save a message to Firestore
 app.post('/send-message', async (req, res) => {
   const { user, message } = req.body;
 
@@ -43,7 +50,7 @@ app.post('/send-message', async (req, res) => {
     return res.status(400).json({ error: 'Missing user or message' });
   }
 
-  console.log(`Message from ${user}: ${message}`);
+  console.log(`📩 Message from ${user}: ${message}`);
 
   try {
     await db.collection('messages').add({
@@ -62,7 +69,30 @@ app.post('/send-message', async (req, res) => {
   }
 });
 
+// ✅ GET endpoint to fetch recent messages from Firestore
+app.get('/messages', async (req, res) => {
+  const limit = parseInt(req.query.limit) || 20;
+
+  try {
+    const snapshot = await db
+      .collection('messages')
+      .orderBy('timestamp', 'desc')
+      .limit(limit)
+      .get();
+
+    const messages = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    res.json({ messages });
+  } catch (e) {
+    console.error('❌ Error fetching messages:', e);
+    res.status(500).json({ error: 'Failed to fetch messages' });
+  }
+});
+
 // ✅ Start the server
 server.listen(PORT, () => {
-  console.log(`Server running at http://localhost:${PORT}`);
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
 });
