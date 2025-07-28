@@ -1,5 +1,13 @@
 // service/recipe_suggestion.js
-const { getTextModel } = require('../config/gemini');
+const { GoogleGenerativeAI } = require('@google/generative-ai');
+
+// ✅ Your API Key (do NOT commit this in production)
+const genAI = new GoogleGenerativeAI('AIzaSyBa47pCYvE_9lnuEa4_Fhulkt8HLEiVl_M');
+
+// Get the correct Gemini model
+const getTextModel = () => {
+  return genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+};
 
 const suggestRecipesWithGemini = async (ingredients) => {
   const model = getTextModel();
@@ -13,24 +21,27 @@ Suggest 3 different meal recipes I can make using them. For each recipe, include
 Return the response as pure JSON in this format:
 [
   {
-    "title": "...",
-    "ingredients": ["...", "..."],
-    "steps": ["...", "..."]
+    "title": "string",
+    "ingredients": ["string"],
+    "steps": ["string"]
   },
   ...
 ]
 `;
 
   try {
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const text = response.text();
+    const result = await model.generateContent({
+      contents: [{ parts: [{ text: prompt }] }]
+    });
 
-    // Clean up Gemini's response
+    const response = await result.response;
+    const text = await response.text();
+
+    // Remove markdown JSON block if present
     const jsonString = text.replace(/```json|```/g, '').trim();
     return JSON.parse(jsonString);
   } catch (error) {
-    console.error('❌ Error suggesting recipes from Gemini:', error);
+    console.error('❌ Error suggesting recipes from Gemini:', error.message || error);
     return [];
   }
 };
