@@ -1,7 +1,10 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // Initialize Gemini AI with your API key
-const genAI = new GoogleGenerativeAI('AIzaSyBa47pCYvE_9lnuEa4_Fhulkt8HLEiVl_M');
+const API_KEY = 'AIzaSyBa47pCYvE_9lnuEa4_Fhulkt8HLEiVl_M';
+const genAI = new GoogleGenerativeAI(API_KEY);
+
+console.log('🔑 Gemini AI initialized with API key');
 
 exports.detectIngredientsFromImage = async (imageBuffer) => {
   try {

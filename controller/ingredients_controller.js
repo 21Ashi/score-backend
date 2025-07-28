@@ -1,4 +1,4 @@
-const { detectIngredientsFromImage } = require('../ai_service');
+const { detectIngredientsFromImage } = require('../service/ai_service');
 
 exports.uploadImage = async (req, res) => {
   try {
