@@ -1,4 +1,5 @@
 const { detectIngredientsFromImage } = require('../service/ai_service');
+const { firestore } = require('../firebase');
 const { suggestRecipesWithSpoonacular } = require('../service/recipe_suggestion');
 
 // Map Spoonacular recipe to your app's JSON structure
@@ -35,22 +36,27 @@ function mapSpoonacularRecipeToJson(recipe) {
   };
 }
 
+async function saveRecipesToFirestore(recipes) {
+  const batch = firestore.batch();
+  recipes.forEach(recipe => {
+    const docRef = firestore.collection('recipes').doc(recipe.id.toString());
+    batch.set(docRef, recipe, { merge: true });
+  });
+  await batch.commit();
+  console.log('✅ Recipes saved to Firestore');
+}
+
 exports.uploadImage = async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No image file uploaded', success: false });
     }
-
     const imageBuffer = req.file.buffer;
-
-    // Detect ingredients (your existing method)
     const ingredients = await detectIngredientsFromImage(imageBuffer);
-
-    // Suggest recipes from Spoonacular
     const recipes = await suggestRecipesWithSpoonacular(ingredients);
-
-    // Map recipes to your structure
     const mappedRecipes = recipes.map(mapSpoonacularRecipeToJson);
+
+    await saveRecipesToFirestore(mappedRecipes);
 
     res.status(200).json({
       success: true,

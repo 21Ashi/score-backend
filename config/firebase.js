@@ -7,8 +7,10 @@ function initFirebase() {
 
   admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
-    databaseURL: 'https://cheflens-ce7f2.firebaseio.com',
+    databaseURL: 'https://cheflens-ce7f2.firebaseio.com', // Your Firebase database URL
   });
 }
 
-module.exports = { initFirebase };
+const firestore = admin.firestore();
+
+module.exports = { initFirebase, firestore };
