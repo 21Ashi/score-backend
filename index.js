@@ -3,54 +3,43 @@ const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
-const dotenv = require('dotenv');
+const cors = require('cors');
 
-// Load environment variables
-dotenv.config();
-
-// Firebase init
 const { initFirebase } = require('./config/firebase');
-
-// Import routes
 const messageRoutes = require('./routes/messages');
 const imageRoutes = require('./routes/image');
 
-// Initialize Express
 const app = express();
 
-// Middleware
+// CORS for frontend connection
+app.use(cors());
+
+// Parse JSON bodies
 app.use(express.json());
-app.use(express.urlencoded({ extended: true })); // for form data if needed
+
+// Serve uploaded images statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-// Init Firebase
+// Initialize Firebase (if needed)
 initFirebase();
 
-// Use routes
+// Register routes
 app.use('/', messageRoutes);
 app.use('/', imageRoutes);
 
-// Optional: Catch-all route
-app.get('/', (req, res) => {
-  res.send('✅ Backend is running!');
-});
-
-// Optional: Global error handler
-app.use((err, req, res, next) => {
-  console.error('❌ Global error handler:', err);
-  res.status(500).json({ error: 'Internal Server Error' });
-});
-
-// WebSocket setup
+// Create HTTP server
 const server = http.createServer(app);
+
+// Setup WebSocket server
 const wss = new WebSocket.Server({ server });
 
 wss.on('connection', (ws) => {
   console.log('🔌 WebSocket client connected');
+
   ws.send('👋 Hello from the server!');
 
   ws.on('message', (msg) => {
-    console.log('📩 Message from client:', msg);
+    console.log('📨 Message from client:', msg);
     ws.send(`You said: ${msg}`);
   });
 
@@ -59,8 +48,8 @@ wss.on('connection', (ws) => {
   });
 });
 
-// Start server
+// Start the server
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-  console.log(`🚀 Server is running at http://localhost:${PORT}`);
+  console.log(`🚀 Server is running on http://localhost:${PORT}`);
 });
