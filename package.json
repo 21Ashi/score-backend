@@ -7,9 +7,12 @@
     "start": "node index.js"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "cors": "^2.8.5",
     "express": "^5.1.0",
     "firebase-admin": "^13.4.0",
     "http": "^0.0.1-security",
+    "multer": "^2.0.2",
     "ws": "^8.18.3"
   }
 }
