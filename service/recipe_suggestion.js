@@ -1,49 +1,50 @@
-// service/recipe_suggestion.js
 const axios = require('axios');
 
-// ✅ Suggest recipes using TheMealDB based on ingredients
-const suggestRecipesWithMealDB = async (ingredients) => {
-  const joinedIngredients = ingredients.join(',');
+const SPOONACULAR_API_KEY = '3ee0e9be7d574446a5bfd1e40c5dface';
+const BASE_URL = 'https://api.spoonacular.com';
 
-  const filterUrl = `https://www.themealdb.com/api/json/v1/1/filter.php?i=${joinedIngredients}`;
+const suggestRecipesWithSpoonacular = async (ingredients) => {
+  if (!ingredients || ingredients.length === 0) return [];
 
   try {
-    // Step 1: Search for meals using ingredients
-    const filterRes = await axios.get(filterUrl);
-    const basicMeals = filterRes.data.meals;
+    // Join ingredients by comma (Spoonacular expects comma separated)
+    const ingredientsParam = ingredients.join(',');
 
-    if (!basicMeals) return [];
+    // Fetch recipes that use the provided ingredients
+    const response = await axios.get(`${BASE_URL}/recipes/findByIngredients`, {
+      params: {
+        ingredients: ingredientsParam,
+        number: 5,        // number of recipes to return
+        ranking: 1,       // maximize used ingredients
+        apiKey: SPOONACULAR_API_KEY,
+      },
+    });
 
-    // Step 2: Get full details for top 3 meals
-    const detailedMeals = await Promise.all(
-      basicMeals.slice(0, 3).map(async (meal) => {
-        const detailUrl = `https://www.themealdb.com/api/json/v1/1/lookup.php?i=${meal.idMeal}`;
-        const detailRes = await axios.get(detailUrl);
-        const fullMeal = detailRes.data.meals[0];
+    const data = response.data; // Array of recipe summaries
 
-        const extractedIngredients = [];
-        for (let i = 1; i <= 20; i++) {
-          const ingredient = fullMeal[`strIngredient${i}`];
-          const measure = fullMeal[`strMeasure${i}`];
-          if (ingredient && ingredient.trim()) {
-            extractedIngredients.push(`${measure.trim()} ${ingredient.trim()}`.trim());
-          }
+    // For each recipe, fetch detailed info to get full instructions, nutrition, etc.
+    const detailedRecipes = await Promise.all(
+      data.map(async (recipeSummary) => {
+        try {
+          const detailsResponse = await axios.get(`${BASE_URL}/recipes/${recipeSummary.id}/information`, {
+            params: {
+              includeNutrition: true,
+              apiKey: SPOONACULAR_API_KEY,
+            },
+          });
+          return detailsResponse.data;
+        } catch {
+          return null;
         }
-
-        return {
-          title: fullMeal.strMeal,
-          ingredients: extractedIngredients,
-          steps: fullMeal.strInstructions.split('\n').filter(line => line.trim() !== ''),
-          thumbnail: fullMeal.strMealThumb,
-        };
       })
     );
 
-    return detailedMeals;
+    // Filter out any failed fetches
+    return detailedRecipes.filter((r) => r !== null);
   } catch (error) {
-    console.error('❌ Error suggesting recipes from TheMealDB:', error.message || error);
+    console.error('❌ Error fetching recipes from Spoonacular:', error.message || error);
     return [];
   }
 };
 
-module.exports = { suggestRecipesWithMealDB };
+module.exports = { suggestRecipesWithSpoonacular };
