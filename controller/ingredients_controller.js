@@ -1,31 +1,35 @@
 const { detectIngredientsFromImage } = require('../service/ai_service');
-const { suggestRecipesWithMealDB } = require('../service/recipe_suggestion'); // ✅ use MealDB now
+const { suggestRecipesWithSpoonacular } = require('../service/recipe_suggestion'); // Use Spoonacular now
 
-// Optional mapper if you want to unify the shape
-function mapMealDBRecipeToJson(recipe) {
+// Spoonacular recipe mapper to unify structure
+function mapSpoonacularRecipeToJson(recipe) {
   return {
-    id: recipe.idMeal || null,
-    title: recipe.title || recipe.strMeal,
-    description: null,
-    ingredients: recipe.ingredients || [],
-    instructions: recipe.steps || [],
-    imageUrl: recipe.thumbnail || recipe.strMealThumb || null,
-    preparationTime: null,
-    cookingTime: null,
-    totalTime: null,
-    servings: null,
-    calories: null,
-    difficulty: null,
-    tags: null,
-    cuisine: null,
-    category: null,
+    id: recipe.id || null,
+    title: recipe.title || null,
+    description: recipe.summary || null,
+    ingredients: recipe.extendedIngredients
+      ? recipe.extendedIngredients.map(ing => ing.original) 
+      : [],
+    instructions: recipe.analyzedInstructions && recipe.analyzedInstructions.length > 0
+      ? recipe.analyzedInstructions[0].steps.map(step => step.step)
+      : [],
+    imageUrl: recipe.image || null,
+    preparationTime: recipe.preparationMinutes || null,
+    cookingTime: recipe.cookingMinutes || null,
+    totalTime: recipe.readyInMinutes || null,
+    servings: recipe.servings || null,
+    calories: recipe.nutrition?.nutrients?.find(n => n.name === "Calories")?.amount || null,
+    difficulty: null,   // Spoonacular does not provide difficulty directly
+    tags: recipe.diets || null,
+    cuisine: recipe.cuisines || null,
+    category: recipe.dishTypes || null,
     rating: null,
     reviewCount: null,
     author: null,
     createdAt: null,
     updatedAt: null,
     isFavorite: false,
-    nutritionInfo: null,
+    nutritionInfo: recipe.nutrition || null,
   };
 }
 
@@ -54,13 +58,13 @@ exports.uploadImage = async (req, res) => {
     const ingredients = await detectIngredientsFromImage(imageBuffer);
     console.log('🎉 Detected ingredients:', ingredients);
 
-    // 2. Suggest recipes using TheMealDB
-    console.log('📡 Fetching recipe suggestions from TheMealDB...');
-    let recipes = await suggestRecipesWithMealDB(ingredients);
+    // 2. Suggest recipes using Spoonacular
+    console.log('📡 Fetching recipe suggestions from Spoonacular...');
+    let recipes = await suggestRecipesWithSpoonacular(ingredients);
     console.log('✅ Recipe suggestions received:', recipes);
 
     // 3. Normalize recipe structure
-    const mappedRecipes = recipes.map(mapMealDBRecipeToJson);
+    const mappedRecipes = recipes.map(mapSpoonacularRecipeToJson);
 
     // 4. Respond with everything
     res.status(200).json({
