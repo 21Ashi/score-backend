@@ -1,6 +1,6 @@
 const axios = require('axios');
 
-const SPOONACULAR_API_KEY = '2872e4f143f34f20988113a76cab4c1e';
+const SPOONACULAR_API_KEY = 'b0d2212648444a93bc93358e2804f314';
 const BASE_URL = 'https://api.spoonacular.com';
 
 const suggestRecipesWithSpoonacular = async (ingredients) => {
