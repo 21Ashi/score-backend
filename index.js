@@ -3,7 +3,6 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { detectIngredientsWithGemini, getSimpleIngredientList } = require('./gemini-detection');
 
 console.log('🚀 Starting server...');
 
@@ -51,10 +50,9 @@ const upload = multer({
 // Health check
 app.get('/', (req, res) => {
   res.json({ 
-    message: 'Score Backend API with Gemini AI is running!', 
+    message: 'Score Backend API is running!', 
     timestamp: new Date().toISOString(),
-    status: 'healthy',
-    features: ['image_upload', 'ingredient_detection']
+    status: 'healthy'
   });
 });
 
@@ -62,13 +60,12 @@ app.get('/health', (req, res) => {
   res.json({ 
     status: 'OK', 
     timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    gemini_configured: !!process.env.GEMINI_API_KEY
+    uptime: process.uptime()
   });
 });
 
-// Image upload endpoint with AI detection
-app.post('/upload-ingredient-image', upload.single('image'), async (req, res) => {
+// Image upload endpoint
+app.post('/upload-ingredient-image', upload.single('image'), (req, res) => {
   try {
     console.log('📤 Upload request received');
     
@@ -82,53 +79,13 @@ app.post('/upload-ingredient-image', upload.single('image'), async (req, res) =>
 
     console.log('✅ File uploaded:', req.file.filename);
     
-    const imagePath = req.file.path;
-    let aiAnalysis = null;
-    
-    // Check if Gemini API key is configured
-    if (process.env.GEMINI_API_KEY) {
-      console.log('🤖 Starting AI analysis...');
-      
-      try {
-        // Get detailed analysis or simple list based on query parameter
-        const useSimple = req.query.simple === 'true';
-        
-        if (useSimple) {
-          aiAnalysis = await getSimpleIngredientList(imagePath);
-        } else {
-          aiAnalysis = await detectIngredientsWithGemini(imagePath);
-        }
-        
-        console.log('🎯 AI analysis completed');
-        
-      } catch (aiError) {
-        console.error('❌ AI analysis failed:', aiError.message);
-        aiAnalysis = {
-          success: false,
-          error: 'AI analysis failed: ' + aiError.message,
-          ingredients: []
-        };
-      }
-    } else {
-      console.log('⚠️ Gemini API key not configured');
-      aiAnalysis = {
-        success: false,
-        error: 'AI detection not configured - missing GEMINI_API_KEY',
-        ingredients: []
-      };
-    }
-    
     const responseData = {
       success: true,
-      message: 'Image uploaded and analyzed successfully!',
-      file: {
-        filename: req.file.filename,
-        originalName: req.file.originalname,
-        size: req.file.size,
-        path: `/uploads/${req.file.filename}`,
-        url: `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`
-      },
-      ai_analysis: aiAnalysis,
+      message: 'Image uploaded successfully!',
+      filename: req.file.filename,
+      originalName: req.file.originalname,
+      size: req.file.size,
+      path: `/uploads/${req.file.filename}`,
       timestamp: new Date().toISOString()
     };
     
@@ -137,57 +94,9 @@ app.post('/upload-ingredient-image', upload.single('image'), async (req, res) =>
   } catch (error) {
     console.error('❌ Upload error:', error);
     res.status(500).json({ 
-      error: 'Failed to upload and analyze image',
+      error: 'Failed to upload image',
       success: false,
       details: error.message 
-    });
-  }
-});
-
-// Analyze existing image endpoint
-app.post('/analyze-image/:filename', async (req, res) => {
-  try {
-    const filename = req.params.filename;
-    const imagePath = path.join(uploadsDir, filename);
-    
-    if (!fs.existsSync(imagePath)) {
-      return res.status(404).json({
-        success: false,
-        error: 'Image file not found'
-      });
-    }
-    
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(400).json({
-        success: false,
-        error: 'AI detection not configured - missing GEMINI_API_KEY'
-      });
-    }
-    
-    console.log('🔍 Re-analyzing existing image:', filename);
-    
-    const useSimple = req.query.simple === 'true';
-    let analysis;
-    
-    if (useSimple) {
-      analysis = await getSimpleIngredientList(imagePath);
-    } else {
-      analysis = await detectIngredientsWithGemini(imagePath);
-    }
-    
-    res.json({
-      success: true,
-      filename: filename,
-      analysis: analysis,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('❌ Analysis error:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Failed to analyze image',
-      details: error.message
     });
   }
 });
@@ -224,7 +133,6 @@ const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🤖 Gemini AI: ${process.env.GEMINI_API_KEY ? 'Configured' : 'Not configured'}`);
 });
 
 server.on('error', (error) => {
