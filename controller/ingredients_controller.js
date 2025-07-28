@@ -1,6 +1,34 @@
 const { detectIngredientsFromImage } = require('../service/ai_service');
 const { suggestRecipesWithGemini } = require('../service/recipe_suggestion');
 
+// Map raw recipe object to expected JSON structure
+function mapRecipeToJson(recipe) {
+  return {
+    id: recipe.id,
+    title: recipe.title,
+    description: recipe.description,
+    ingredients: recipe.ingredients,
+    instructions: recipe.instructions,
+    imageUrl: recipe.imageUrl || null,
+    preparationTime: recipe.preparationTime,
+    cookingTime: recipe.cookingTime || null,
+    totalTime: recipe.totalTime || null,
+    servings: recipe.servings || null,
+    calories: recipe.calories || null,
+    difficulty: recipe.difficulty || null,
+    tags: recipe.tags || null,
+    cuisine: recipe.cuisine || null,
+    category: recipe.category || null,
+    rating: recipe.rating || null,
+    reviewCount: recipe.reviewCount || null,
+    author: recipe.author || null,
+    createdAt: recipe.createdAt ? new Date(recipe.createdAt).toISOString() : null,
+    updatedAt: recipe.updatedAt ? new Date(recipe.updatedAt).toISOString() : null,
+    isFavorite: recipe.isFavorite ?? false,
+    nutritionInfo: recipe.nutritionInfo || null,
+  };
+}
+
 exports.uploadImage = async (req, res) => {
   try {
     console.log('📤 Controller: Image upload request received');
@@ -28,16 +56,19 @@ exports.uploadImage = async (req, res) => {
 
     // 2. Suggest recipes based on ingredients
     console.log('📡 Controller: Requesting recipe suggestions from Gemini...');
-    const recipes = await suggestRecipesWithGemini(ingredients);
+    let recipes = await suggestRecipesWithGemini(ingredients);
     console.log('✅ Controller: Received recipe suggestions:', recipes);
 
-    // 3. Respond with both ingredients and recipes
+    // 3. Map recipes to exact expected JSON structure
+    const mappedRecipes = recipes.map(mapRecipeToJson);
+
+    // 4. Respond with both ingredients and mapped recipes
     res.status(200).json({
       success: true,
       message: 'Image processed and ingredients detected successfully!',
       ingredients,
       count: ingredients.length,
-      recipes,
+      recipes: mappedRecipes,
       fileInfo: {
         originalname: req.file.originalname,
         mimetype: req.file.mimetype,
