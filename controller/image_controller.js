@@ -2,7 +2,10 @@ const { detectIngredientsFromImage } = require('../service/ai_service');
 const { getFirestore } = require('../config/firebase');
 const { suggestRecipesWithSpoonacular } = require('../service/recipe_suggestion');
 
-// 1. Recipe mapper
+// ✅ Get initialized Firestore instance
+const firestore = getFirestore();
+
+// ✅ 1. Map Spoonacular recipe to your Firestore format
 function mapSpoonacularRecipeToJson(recipe) {
   return {
     id: recipe.id || null,
@@ -32,21 +35,21 @@ function mapSpoonacularRecipeToJson(recipe) {
   };
 }
 
-// 2. Save to Firestore
-async function saveRecipesToFirestore(recipes) {
-  const firestore = getFirestore();
+// ✅ 2. Save mapped recipes to Firestore under Users/{userId}/recipes
+async function saveRecipesToFirestore(userId, recipes) {
   const batch = firestore.batch();
+  const userRef = firestore.collection('Users').doc(userId);
 
   recipes.forEach(recipe => {
-    const docRef = firestore.collection('recipes').doc(recipe.id?.toString());
-    batch.set(docRef, recipe, { merge: true });
+    const recipeRef = userRef.collection('recipes').doc(recipe.id.toString());
+    batch.set(recipeRef, recipe, { merge: true });
   });
 
   await batch.commit();
-  console.log('✅ Recipes saved to Firestore');
+  console.log(`✅ Saved ${recipes.length} recipes to Users/${userId}/recipes`);
 }
 
-// 3. Upload Image Controller
+// ✅ 3. Upload controller
 exports.uploadImage = async (req, res) => {
   try {
     console.log('📤 Controller: Image upload request received');
@@ -54,6 +57,11 @@ exports.uploadImage = async (req, res) => {
     if (!req.file) {
       console.log('❌ No file uploaded');
       return res.status(400).json({ error: 'No image file uploaded', success: false });
+    }
+
+    const userId = req.body.userId;
+    if (!userId) {
+      return res.status(400).json({ error: 'Missing userId in request body', success: false });
     }
 
     const imageBuffer = req.file.buffer;
@@ -69,7 +77,7 @@ exports.uploadImage = async (req, res) => {
     const mappedRecipes = recipes.map(mapSpoonacularRecipeToJson);
 
     console.log('📝 Saving to Firestore...');
-    await saveRecipesToFirestore(mappedRecipes);
+    await saveRecipesToFirestore(userId, mappedRecipes);
 
     res.status(200).json({
       success: true,
