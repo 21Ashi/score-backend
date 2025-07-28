@@ -1,6 +1,6 @@
 const { detectIngredientsFromImage } = require('../service/ai_service');
 const { suggestRecipesWithSpoonacular } = require('../service/recipe_suggestion');
-const { mapcularRecipeToJson } = require('../utils/recipe_mapper'); // ✅ Import recipe mapper
+const { mapSpoonacularRecipeToJson } = require('../utils/recipe_mapper'); // ✅ Import recipe mapper
 const { initFirebase, getFirestore } = require('../config/firebase');     // ✅ Firebase utilities
 
 initFirebase(); // 🔥 Ensure Firebase is initialized once
