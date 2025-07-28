@@ -4,7 +4,6 @@ const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const vision = require('@google-cloud/vision');
 
 console.log('🚀 Starting server...');
 
@@ -24,36 +23,13 @@ if (!fs.existsSync(uploadsDir)) {
 // Serve uploaded images
 app.use('/uploads', express.static(uploadsDir));
 
-// Configure multer
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadsDir);
-  },
-  filename: function (req, file, cb) {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'ingredient-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Import your routes
+const imageRoutes = require('./image'); // or whatever path your image.js is in
+const ingredientRoutes = require('./ingredientsRoutes'); // if you're using this
 
-const upload = multer({ 
-  storage: storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-  },
-  fileFilter: function (req, file, cb) {
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed!'), false);
-    }
-  }
-});
-
-// Initialize Google Vision client
-const visionClient = new vision.ImageAnnotatorClient({
-  // Optional: specify keyFilename or rely on GOOGLE_APPLICATION_CREDENTIALS env var
-  // keyFilename: './path-to-your-google-creds.json',
-});
+// Use routes
+app.use('/api', imageRoutes);
+app.use('/api/ingredients', ingredientRoutes);
 
 // Health check routes
 app.get('/', (req, res) => {
@@ -70,51 +46,6 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
   });
-});
-
-// Image upload & AI detection endpoint
-app.post('/upload-ingredient-image', upload.single('image'), async (req, res) => {
-  try {
-    console.log('📤 Upload request received');
-    
-    if (!req.file) {
-      console.log('❌ No file in request');
-      return res.status(400).json({ 
-        error: 'No image file uploaded',
-        success: false 
-      });
-    }
-
-    console.log('✅ File uploaded:', req.file.filename);
-
-    // Read image file buffer
-    const imageBuffer = fs.readFileSync(req.file.path);
-
-    // Call Google Vision API label detection
-    const [result] = await visionClient.labelDetection({ image: { content: imageBuffer } });
-    const labels = result.labelAnnotations;
-
-    // Extract ingredient names (labels)
-    const ingredients = labels.map(label => label.description.toLowerCase());
-
-    console.log('🧠 Detected ingredients:', ingredients);
-
-    res.status(200).json({
-      success: true,
-      message: 'Image uploaded and ingredients detected successfully!',
-      filename: req.file.filename,
-      ingredients,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    console.error('❌ Upload or AI detection error:', error);
-    res.status(500).json({ 
-      error: 'Failed to upload image or detect ingredients',
-      success: false,
-      details: error.message 
-    });
-  }
 });
 
 // Error handling middleware
