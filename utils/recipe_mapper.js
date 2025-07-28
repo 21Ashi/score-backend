@@ -1,3 +1,5 @@
+const { extractNutrition } = require('./extractNutrition');
+
 // utils/recipe_mapper.js
 function mapSpoonacularRecipeToJson(recipe) {
   return {
@@ -24,7 +26,9 @@ function mapSpoonacularRecipeToJson(recipe) {
     createdAt: null,
     updatedAt: null,
     isFavorite: false,
-    nutritionInfo: recipe.nutrition || null,
+    
+    // 👇 This is now simplified using your extractNutrition function
+    nutritionInfo: extractNutrition(recipe.nutrition),
   };
 }
 
