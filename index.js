@@ -1,4 +1,4 @@
-const { initFirebase } = require('./firebase');
+const { initFirebase } = require('../firebase');
 initFirebase();
 require('dotenv').config();
 const express = require('express');
