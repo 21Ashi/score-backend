@@ -1,31 +1,31 @@
 const { detectIngredientsFromImage } = require('../service/ai_service');
-const { suggestRecipesWithGemini } = require('../service/recipe_suggestion');
+const { suggestRecipesWithMealDB } = require('../service/recipe_suggestion'); // ✅ use MealDB now
 
-// Map raw recipe object to expected JSON structure
-function mapRecipeToJson(recipe) {
+// Optional mapper if you want to unify the shape
+function mapMealDBRecipeToJson(recipe) {
   return {
-    id: recipe.id,
-    title: recipe.title,
-    description: recipe.description,
-    ingredients: recipe.ingredients,
-    instructions: recipe.instructions,
-    imageUrl: recipe.imageUrl || null,
-    preparationTime: recipe.preparationTime,
-    cookingTime: recipe.cookingTime || null,
-    totalTime: recipe.totalTime || null,
-    servings: recipe.servings || null,
-    calories: recipe.calories || null,
-    difficulty: recipe.difficulty || null,
-    tags: recipe.tags || null,
-    cuisine: recipe.cuisine || null,
-    category: recipe.category || null,
-    rating: recipe.rating || null,
-    reviewCount: recipe.reviewCount || null,
-    author: recipe.author || null,
-    createdAt: recipe.createdAt ? new Date(recipe.createdAt).toISOString() : null,
-    updatedAt: recipe.updatedAt ? new Date(recipe.updatedAt).toISOString() : null,
-    isFavorite: recipe.isFavorite ?? false,
-    nutritionInfo: recipe.nutritionInfo || null,
+    id: recipe.idMeal || null,
+    title: recipe.title || recipe.strMeal,
+    description: null,
+    ingredients: recipe.ingredients || [],
+    instructions: recipe.steps || [],
+    imageUrl: recipe.thumbnail || recipe.strMealThumb || null,
+    preparationTime: null,
+    cookingTime: null,
+    totalTime: null,
+    servings: null,
+    calories: null,
+    difficulty: null,
+    tags: null,
+    cuisine: null,
+    category: null,
+    rating: null,
+    reviewCount: null,
+    author: null,
+    createdAt: null,
+    updatedAt: null,
+    isFavorite: false,
+    nutritionInfo: null,
   };
 }
 
@@ -50,19 +50,19 @@ exports.uploadImage = async (req, res) => {
     const imageBuffer = req.file.buffer;
 
     // 1. Detect ingredients from image
-    console.log('🤖 Controller: Calling Gemini AI for ingredient detection...');
+    console.log('🤖 Controller: Calling AI service to detect ingredients...');
     const ingredients = await detectIngredientsFromImage(imageBuffer);
-    console.log('🎉 Controller: Successfully detected ingredients:', ingredients);
+    console.log('🎉 Detected ingredients:', ingredients);
 
-    // 2. Suggest recipes based on ingredients
-    console.log('📡 Controller: Requesting recipe suggestions from Gemini...');
-    let recipes = await suggestRecipesWithGemini(ingredients);
-    console.log('✅ Controller: Received recipe suggestions:', recipes);
+    // 2. Suggest recipes using TheMealDB
+    console.log('📡 Fetching recipe suggestions from TheMealDB...');
+    let recipes = await suggestRecipesWithMealDB(ingredients);
+    console.log('✅ Recipe suggestions received:', recipes);
 
-    // 3. Map recipes to exact expected JSON structure
-    const mappedRecipes = recipes.map(mapRecipeToJson);
+    // 3. Normalize recipe structure
+    const mappedRecipes = recipes.map(mapMealDBRecipeToJson);
 
-    // 4. Respond with both ingredients and mapped recipes
+    // 4. Respond with everything
     res.status(200).json({
       success: true,
       message: 'Image processed and ingredients detected successfully!',
@@ -79,7 +79,7 @@ exports.uploadImage = async (req, res) => {
 
   } catch (error) {
     console.error('❌ Controller: Error processing image:', error);
-    
+
     res.status(500).json({ 
       error: 'Failed to process image or detect ingredients',
       success: false,
