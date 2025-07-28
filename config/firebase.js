@@ -1,16 +1,28 @@
 const admin = require('firebase-admin');
 
 function initFirebase() {
-  const serviceAccount = JSON.parse(
-    Buffer.from(process.env.FIREBASE_CONFIG, 'base64').toString('utf-8')
-  );
+  if (admin.apps.length === 0) {
+    const serviceAccount = JSON.parse(
+      Buffer.from(process.env.FIREBASE_CONFIG, 'base64').toString('utf-8')
+    );
 
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-    databaseURL: 'https://cheflens-ce7f2.firebaseio.com', // Your Firebase database URL
-  });
+    admin.initializeApp({
+      credential: admin.credential.cert(serviceAccount),
+      databaseURL: 'https://cheflens-ce7f2.firebaseio.com',
+    });
+
+    console.log('🔥 Firebase initialized');
+  }
 }
 
-const firestore = admin.firestore();
+function getFirestore() {
+  if (!admin.apps.length) throw new Error('Firebase not initialized');
+  return admin.firestore();
+}
 
-module.exports = { initFirebase, firestore };
+module.exports = {
+  initFirebase,
+  getFirestore,
+};
+
+
