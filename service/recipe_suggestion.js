@@ -6,7 +6,7 @@ const genAI = new GoogleGenerativeAI('AIzaSyBa47pCYvE_9lnuEa4_Fhulkt8HLEiVl_M');
 
 // Get the correct Gemini model
 const getTextModel = () => {
-  return genAI.getGenerativeModel({ model: "gemini-pro" });
+  return genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
 };
 
 const suggestRecipesWithGemini = async (ingredients) => {
