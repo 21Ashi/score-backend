@@ -1,37 +1,8 @@
 const { detectIngredientsFromImage } = require('../service/ai_service');
-const { suggestRecipesWithSpoonacular } = require('../service/recipe_suggestion'); // Use Spoonacular now
+const { suggestRecipesWithSpoonacular } = require('../service/recipe_suggestion');
+const { initFirebase, getFirestore } = require('../config/firebase'); // 🔥 Import firebase utils
 
-// Spoonacular recipe mapper to unify structure
-function mapSpoonacularRecipeToJson(recipe) {
-  return {
-    id: recipe.id || null,
-    title: recipe.title || null,
-    description: recipe.summary || null,
-    ingredients: recipe.extendedIngredients
-      ? recipe.extendedIngredients.map(ing => ing.original) 
-      : [],
-    instructions: recipe.analyzedInstructions && recipe.analyzedInstructions.length > 0
-      ? recipe.analyzedInstructions[0].steps.map(step => step.step)
-      : [],
-    imageUrl: recipe.image || null,
-    preparationTime: recipe.preparationMinutes || null,
-    cookingTime: recipe.cookingMinutes || null,
-    totalTime: recipe.readyInMinutes || null,
-    servings: recipe.servings || null,
-    calories: recipe.nutrition?.nutrients?.find(n => n.name === "Calories")?.amount || null,
-    difficulty: null,   // Spoonacular does not provide difficulty directly
-    tags: recipe.diets || null,
-    cuisine: recipe.cuisines || null,
-    category: recipe.dishTypes || null,
-    rating: null,
-    reviewCount: null,
-    author: null,
-    createdAt: null,
-    updatedAt: null,
-    isFavorite: false,
-    nutritionInfo: recipe.nutrition || null,
-  };
-}
+initFirebase(); // ✅ Make sure Firebase is initialized
 
 exports.uploadImage = async (req, res) => {
   try {
@@ -45,39 +16,46 @@ exports.uploadImage = async (req, res) => {
       });
     }
 
-    console.log('✅ Controller: File received:', {
-      originalname: req.file.originalname,
-      mimetype: req.file.mimetype,
-      size: req.file.size
-    });
+    const userId = req.body.userId; // 🔥 Read userId from request
+    if (!userId) {
+      return res.status(400).json({ error: 'Missing userId', success: false });
+    }
 
     const imageBuffer = req.file.buffer;
 
-    // 1. Detect ingredients from image
-    console.log('🤖 Controller: Calling AI service to detect ingredients...');
+    // 1. Detect ingredients
     const ingredients = await detectIngredientsFromImage(imageBuffer);
-    console.log('🎉 Detected ingredients:', ingredients);
 
-    // 2. Suggest recipes using Spoonacular
-    console.log('📡 Fetching recipe suggestions from Spoonacular...');
+    // 2. Get Spoonacular recipes
     let recipes = await suggestRecipesWithSpoonacular(ingredients);
-    console.log('✅ Recipe suggestions received:', recipes);
-
-    // 3. Normalize recipe structure
     const mappedRecipes = recipes.map(mapSpoonacularRecipeToJson);
 
-    // 4. Respond with everything
+    // 3. Save to Firestore 🔥
+    const firestore = getFirestore();
+
+    // Create a document under: users/{userId}/scans/{auto_id}
+    const scanRef = firestore.collection('users').doc(userId).collection('scans').doc();
+
+    await scanRef.set({
+      ingredients,
+      recipes: mappedRecipes,
+      createdAt: new Date().toISOString(),
+      fileInfo: {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size
+      }
+    });
+
+    // 4. Return response
     res.status(200).json({
       success: true,
       message: 'Image processed and ingredients detected successfully!',
       ingredients,
       count: ingredients.length,
       recipes: mappedRecipes,
-      fileInfo: {
-        originalname: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size
-      },
+      recipeCount: mappedRecipes.length,
+      saveResult: { saved: true },
       timestamp: new Date().toISOString()
     });
 
