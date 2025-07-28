@@ -1,95 +1,105 @@
+require('dotenv').config();
 const express = require('express');
-const multer = require('multer');
+const http = require('http');
+const WebSocket = require('ws');
 const path = require('path');
-const fs = require('fs');
-const router = express.Router();
+const cors = require('cors');
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, '..', 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
+const app = express();
+
+// Error handling for uncaught exceptions
+process.on('uncaughtException', (error) => {
+  console.error('❌ Uncaught Exception:', error);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('❌ Unhandled Rejection at:', promise, 'reason:', reason);
+  process.exit(1);
+});
+
+// CORS for frontend connection
+app.use(cors());
+
+// Parse JSON bodies
+app.use(express.json());
+
+// Serve uploaded images statically
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+// Health check endpoint
+app.get('/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// Initialize Firebase only if config exists
+try {
+  const { initFirebase } = require('./config/firebase');
+  initFirebase();
+  console.log('✅ Firebase initialized');
+} catch (error) {
+  console.log('⚠️ Firebase initialization skipped:', error.message);
 }
 
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    cb(null, uploadsDir);
-  },
-  filename: function (req, file, cb) {
-    // Generate unique filename
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'ingredient-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
+// Register routes
+try {
+  const messageRoutes = require('./routes/messages');
+  app.use('/', messageRoutes);
+  console.log('✅ Message routes loaded');
+} catch (error) {
+  console.log('⚠️ Message routes not found:', error.message);
+}
 
-const upload = multer({ 
-  storage: storage,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB limit
-  },
-  fileFilter: function (req, file, cb) {
-    // Check if file is an image
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed!'), false);
-    }
-  }
-});
+try {
+  const imageRoutes = require('./routes/image');
+  app.use('/', imageRoutes);
+  console.log('✅ Image routes loaded');
+} catch (error) {
+  console.log('⚠️ Image routes not found:', error.message);
+}
 
-// Image upload endpoint
-router.post('/upload-ingredient-image', upload.single('image'), (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ 
-        error: 'No image file uploaded',
-        success: false 
-      });
-    }
-
-    console.log('✅ Image uploaded successfully:', req.file.filename);
-    
-    // Return success response with file info
-    res.json({
-      success: true,
-      message: 'Image uploaded successfully!',
-      filename: req.file.filename,
-      originalName: req.file.originalname,
-      size: req.file.size,
-      path: `/uploads/${req.file.filename}`,
-      // Add any AI processing results here later
-      aiResults: {
-        // placeholder for future AI analysis
-        detected: [],
-        confidence: 0
-      }
-    });
-
-  } catch (error) {
-    console.error('❌ Error uploading image:', error);
-    res.status(500).json({ 
-      error: 'Failed to upload image',
-      success: false,
-      details: error.message 
-    });
-  }
-});
-
-// Error handling middleware for multer
-router.use((error, req, res, next) => {
-  if (error instanceof multer.MulterError) {
-    if (error.code === 'LIMIT_FILE_SIZE') {
-      return res.status(400).json({
-        error: 'File too large. Maximum size is 10MB.',
-        success: false
-      });
-    }
-  }
-  
-  res.status(400).json({
-    error: error.message,
-    success: false
+// Fallback route
+app.get('/', (req, res) => {
+  res.json({ 
+    message: 'Score Backend API is running!', 
+    timestamp: new Date().toISOString(),
+    endpoints: ['/health', '/upload-ingredient-image']
   });
 });
 
-module.exports = router;
+// Create HTTP server
+const server = http.createServer(app);
+
+// Setup WebSocket server
+const wss = new WebSocket.Server({ server });
+
+wss.on('connection', (ws) => {
+  console.log('🔌 WebSocket client connected');
+  ws.send('👋 Hello from the server!');
+
+  ws.on('message', (msg) => {
+    console.log('📨 Message from client:', msg.toString());
+    ws.send(`You said: ${msg}`);
+  });
+
+  ws.on('close', () => {
+    console.log('❌ WebSocket connection closed');
+  });
+
+  ws.on('error', (error) => {
+    console.error('❌ WebSocket error:', error);
+  });
+});
+
+// Start the server
+const PORT = process.env.PORT || 3000;
+
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server is running on port ${PORT}`);
+  console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+});
+
+server.on('error', (error) => {
+  console.error('❌ Server error:', error);
+  process.exit(1);
+});
