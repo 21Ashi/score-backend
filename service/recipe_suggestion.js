@@ -1,49 +1,49 @@
 // service/recipe_suggestion.js
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const axios = require('axios');
 
-// ✅ Your API Key (do NOT commit this in production)
-const genAI = new GoogleGenerativeAI('AIzaSyBa47pCYvE_9lnuEa4_Fhulkt8HLEiVl_M');
+// ✅ Suggest recipes using TheMealDB based on ingredients
+const suggestRecipesWithMealDB = async (ingredients) => {
+  const joinedIngredients = ingredients.join(',');
 
-// Get the correct Gemini model
-const getTextModel = () => {
-  return genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
-};
-
-const suggestRecipesWithGemini = async (ingredients) => {
-  const model = getTextModel();
-
-  const prompt = `
-I have the following ingredients: ${ingredients.join(', ')}.
-Suggest 3 different meal recipes I can make using them. For each recipe, include:
-- Title
-- List of ingredients
-- Steps
-Return the response as pure JSON in this format:
-[
-  {
-    "title": "string",
-    "ingredients": ["string"],
-    "steps": ["string"]
-  },
-  ...
-]
-`;
+  const filterUrl = `https://www.themealdb.com/api/json/v1/1/filter.php?i=${joinedIngredients}`;
 
   try {
-    const result = await model.generateContent({
-      contents: [{ parts: [{ text: prompt }] }]
-    });
+    // Step 1: Search for meals using ingredients
+    const filterRes = await axios.get(filterUrl);
+    const basicMeals = filterRes.data.meals;
 
-    const response = await result.response;
-    const text = await response.text();
+    if (!basicMeals) return [];
 
-    // Remove markdown JSON block if present
-    const jsonString = text.replace(/```json|```/g, '').trim();
-    return JSON.parse(jsonString);
+    // Step 2: Get full details for top 3 meals
+    const detailedMeals = await Promise.all(
+      basicMeals.slice(0, 3).map(async (meal) => {
+        const detailUrl = `https://www.themealdb.com/api/json/v1/1/lookup.php?i=${meal.idMeal}`;
+        const detailRes = await axios.get(detailUrl);
+        const fullMeal = detailRes.data.meals[0];
+
+        const extractedIngredients = [];
+        for (let i = 1; i <= 20; i++) {
+          const ingredient = fullMeal[`strIngredient${i}`];
+          const measure = fullMeal[`strMeasure${i}`];
+          if (ingredient && ingredient.trim()) {
+            extractedIngredients.push(`${measure.trim()} ${ingredient.trim()}`.trim());
+          }
+        }
+
+        return {
+          title: fullMeal.strMeal,
+          ingredients: extractedIngredients,
+          steps: fullMeal.strInstructions.split('\n').filter(line => line.trim() !== ''),
+          thumbnail: fullMeal.strMealThumb,
+        };
+      })
+    );
+
+    return detailedMeals;
   } catch (error) {
-    console.error('❌ Error suggesting recipes from Gemini:', error.message || error);
+    console.error('❌ Error suggesting recipes from TheMealDB:', error.message || error);
     return [];
   }
 };
 
-module.exports = { suggestRecipesWithGemini };
+module.exports = { suggestRecipesWithMealDB };
