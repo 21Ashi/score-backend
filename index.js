@@ -1,8 +1,10 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const vision = require('@google-cloud/vision');
 
 console.log('🚀 Starting server...');
 
@@ -47,7 +49,13 @@ const upload = multer({
   }
 });
 
-// Health check
+// Initialize Google Vision client
+const visionClient = new vision.ImageAnnotatorClient({
+  // Optional: specify keyFilename or rely on GOOGLE_APPLICATION_CREDENTIALS env var
+  // keyFilename: './path-to-your-google-creds.json',
+});
+
+// Health check routes
 app.get('/', (req, res) => {
   res.json({ 
     message: 'Score Backend API is running!', 
@@ -64,8 +72,8 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Image upload endpoint
-app.post('/upload-ingredient-image', upload.single('image'), (req, res) => {
+// Image upload & AI detection endpoint
+app.post('/upload-ingredient-image', upload.single('image'), async (req, res) => {
   try {
     console.log('📤 Upload request received');
     
@@ -78,23 +86,31 @@ app.post('/upload-ingredient-image', upload.single('image'), (req, res) => {
     }
 
     console.log('✅ File uploaded:', req.file.filename);
-    
-    const responseData = {
+
+    // Read image file buffer
+    const imageBuffer = fs.readFileSync(req.file.path);
+
+    // Call Google Vision API label detection
+    const [result] = await visionClient.labelDetection({ image: { content: imageBuffer } });
+    const labels = result.labelAnnotations;
+
+    // Extract ingredient names (labels)
+    const ingredients = labels.map(label => label.description.toLowerCase());
+
+    console.log('🧠 Detected ingredients:', ingredients);
+
+    res.status(200).json({
       success: true,
-      message: 'Image uploaded successfully!',
+      message: 'Image uploaded and ingredients detected successfully!',
       filename: req.file.filename,
-      originalName: req.file.originalname,
-      size: req.file.size,
-      path: `/uploads/${req.file.filename}`,
+      ingredients,
       timestamp: new Date().toISOString()
-    };
-    
-    res.status(200).json(responseData);
+    });
     
   } catch (error) {
-    console.error('❌ Upload error:', error);
+    console.error('❌ Upload or AI detection error:', error);
     res.status(500).json({ 
-      error: 'Failed to upload image',
+      error: 'Failed to upload image or detect ingredients',
       success: false,
       details: error.message 
     });
