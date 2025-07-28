@@ -1,13 +1,15 @@
 const { detectIngredientsFromImage } = require('../service/ai_service');
 const { suggestRecipesWithSpoonacular } = require('../service/recipe_suggestion');
-const { initFirebase, getFirestore } = require('../config/firebase'); // 🔥 Import firebase utils
+const { mapSpoonacularRecipeToJson } = require('../utils/recipe_mapper'); // ✅ Import recipe mapper
+const { initFirebase, getFirestore } = require('../config/firebase');     // ✅ Firebase utilities
 
-initFirebase(); // ✅ Make sure Firebase is initialized
+initFirebase(); // 🔥 Ensure Firebase is initialized once
 
 exports.uploadImage = async (req, res) => {
   try {
     console.log('📤 Controller: Image upload request received');
 
+    // 1. Check if file exists
     if (!req.file) {
       console.log('❌ Controller: No file in request');
       return res.status(400).json({ 
@@ -16,24 +18,27 @@ exports.uploadImage = async (req, res) => {
       });
     }
 
-    const userId = req.body.userId; // 🔥 Read userId from request
+    // 2. Validate userId
+    const userId = req.body.userId;
     if (!userId) {
+      console.log('❌ Controller: Missing userId');
       return res.status(400).json({ error: 'Missing userId', success: false });
     }
 
+    // 3. Process image buffer
     const imageBuffer = req.file.buffer;
-
-    // 1. Detect ingredients
+    console.log('🧠 Detecting ingredients...');
     const ingredients = await detectIngredientsFromImage(imageBuffer);
+    console.log('🎉 Detected ingredients:', ingredients);
 
-    // 2. Get Spoonacular recipes
-    let recipes = await suggestRecipesWithSpoonacular(ingredients);
+    // 4. Get recipes from Spoonacular
+    console.log('📡 Suggesting recipes...');
+    const recipes = await suggestRecipesWithSpoonacular(ingredients);
     const mappedRecipes = recipes.map(mapSpoonacularRecipeToJson);
+    console.log(`🍳 Found ${mappedRecipes.length} recipes`);
 
-    // 3. Save to Firestore 🔥
+    // 5. Save to Firestore
     const firestore = getFirestore();
-
-    // Create a document under: users/{userId}/scans/{auto_id}
     const scanRef = firestore.collection('users').doc(userId).collection('scans').doc();
 
     await scanRef.set({
@@ -43,11 +48,11 @@ exports.uploadImage = async (req, res) => {
       fileInfo: {
         originalname: req.file.originalname,
         mimetype: req.file.mimetype,
-        size: req.file.size
-      }
+        size: req.file.size,
+      },
     });
 
-    // 4. Return response
+    // 6. Send success response
     res.status(200).json({
       success: true,
       message: 'Image processed and ingredients detected successfully!',
@@ -56,7 +61,7 @@ exports.uploadImage = async (req, res) => {
       recipes: mappedRecipes,
       recipeCount: mappedRecipes.length,
       saveResult: { saved: true },
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
 
   } catch (error) {
@@ -65,7 +70,7 @@ exports.uploadImage = async (req, res) => {
     res.status(500).json({ 
       error: 'Failed to process image or detect ingredients',
       success: false,
-      details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      details: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error',
     });
   }
 };
