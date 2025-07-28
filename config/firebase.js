@@ -8,7 +8,7 @@ function initFirebase() {
 
     admin.initializeApp({
       credential: admin.credential.cert(serviceAccount),
-      // No need for databaseURL here if you use Firestore only
+      databaseURL: 'https://cheflens-ce7f2.firebaseio.com',
     });
 
     console.log('🔥 Firebase initialized');
@@ -24,3 +24,5 @@ module.exports = {
   initFirebase,
   getFirestore,
 };
+
+
